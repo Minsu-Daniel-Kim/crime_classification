@@ -1,0 +1,199 @@
+---
+title: "Crime Classification Report"
+author: "Yaxin Yu, Daniel Minsu Kim"
+date: "December 12, 2015"
+output: pdf_document
+---
+
+```{r setup, echo = FALSE, include= FALSE}
+source("skeleton.R")
+```
+
+### Introduction and Problems of Interest
+
+Back in early and mid 20th century, San Francisco was known for numerous crime occurrences and notorious criminals. Nowadays, although its name is often associated with prosperity in techonology, abundance of crime instances remains as an issue due to rising wealth disparity, housing shortages, and so on.
+
+Intending to better understand this issue, our team would like to investigate the patterns in criminal records from the past 12 years. More specifically, we place our focus on the lawful categories of past crime instances and aim to find correlations between crime category and other factors such as time and location. 
+
+Here are the specific questions we are interested in aswering: 
+1. What are the indicative predictors of crime category?
+3. How characteristic are they? How much should each of the predictors weigh?
+4. How is crime category correlated with various predictors?
+5. How to utilize visualization to explore such correlations?
+
+---
+
+### Data Description
+
+Primary data set:
+
+Past criminal records from 1/1/2003 to 5/13/2015 provided by SF OpenData
+
+We downloaded this dataset from SF OpenData website with R. It provides information about over 870,000 crime instances. It includes eight columns -- dates, category, detailed description of the crime (Descript), day of the week, police department district (PdDistrict), resolution, street address, longitude (X), and latitude (Y). 
+
+```{r, echo = TRUE}
+head(crime, 5)
+summary(crime)
+```
+
+Secondary data set:
+
+Location of Starbucks shops in San Francisco
+
+We retrieved San Francisco Starbucks addresses from City-Data.com. Using R, we parsed the originla html source code of all seven pages and looked for nodes containing the addresses of Starbucks shops. Then we obtained their values, put the addresses in a data frame, and saved the addresses as a csv file. 
+
+```{r, eval = TRUE}
+rawStarAdd <- read.csv("rawdata/StarbucksAdd.csv")
+head(rawStarAdd, 5)
+```
+
+### Data Cleaning and Preprocessing
+---Crime Data---
+Many of the columns such as resolution and category in our crime data frame are qualitative, so we factorized them for model building purposes later. In addition, the original date column was too specific, thus it is impossible to generate pattern from it. Therefore, we separated the column into year, month, and hour and added these as additional columns to the crime data frame. For similar reasons, we also extracted street name from the address column. For detailed examples, see below:
+```{r, include = FALSE}
+crime[1, "Date"]
+crime[5, "Address"]
+```
+Here are the newly extracted columns:
+```{r, include = FALSE}
+crime[1, c("year", "hour", "month")]
+crime[5, "street"]
+```
+
+---Starbucks Address Data---
+
+Using built-in functions such as geocode in R ggmap package and setting google as the source, we searched for the longitude and latitude of each Starbucks shop based on its street address. Since the raw Starbucks address dataset contains only street addresses, it occasionally leads google to finding longitudes and latitudes with the same street address but are very far away from San Francisco. In fact, 20 out of the 79 pairs of longitude and latitude data were outside of the bay area. 
+
+Therefore, after retrieving longitudes and latitudes for the first time, we added "San Francisco" to each of addresses of those 20 Starbucks shops and retrieved longitudes and latitudes again. This tactic turned out to be effective and guaranteed accurate geographic information. Now the Starbucks addresses, longitudes, and latitudes are ready for analysis.
+
+Again, here are the resulting columns:
+```{r, include = FALSE}
+starAdd[1, ]
+```
+
+### Analysis Approach
+--- Feature Engineering ---
+As mentioned earlier, we extracted more factors out of existing columns for our crime and Starbucks address data frames. 
+
+--- Crime Type Labeling ---
+The original dataset has 39 categories, so it would be computationaly infeasible. Also, the original dataset is oversized, thus we decided to sample 0.1% of the original dataset and placed the crime instances in three broader groups -- blue-collar crime, white-collar crime, and other crime -- and labeled each crime with "blue," "white," and "other" accordingly. 
+
+--- Incorporating Starbucks Location Data ---
+We hypothesized that the closer it is from Starbucks, the lower the crime rate would be. Since Starbucks are oftentimes located in crowded areas, we anticipated more white-collar crime instances than blue-collar crime around Starbucks shops. To quantify this hypothesis, we calculated the distance from the closest Starbucks for each crime spot. 
+
+--- Visualization ---
+Since the subject of our analysis was in a particular geographical region and location was one of the predictors we intended to consider, we explored the dataset visually. We downlaoded a map of San Francisco and graphed the crime instances as dots along with the map in order to visualize the distribution. 
+
+Furthermore, we graphed the density of each of the three groups of crime on the same map to find out the relationship between type of crime and their geographical distribution.
+
+--- Modeling ---
+As this project concentrates on a classification problem, we incorporated classification tree models. For more intuitive results, we applied ctree and rpart to see the split points. For more accurate prediciton, we applied bagging and ensemble methods such as Gradient Boosting Machine and Random Forest algorithms. 
+
+### Descriptions of Tables, Images, and Results
+As a simple example, here is a map with first 2000 crime instances as well as all Starbucks shops plotted. The colored dots are crime by police department districts, and the black dots are Starbucks shops. 
+```{r, echo = TRUE}
+crimeStarbucksMapNoCirclesFromTo(1, 2000)
+```
+
+--- Distribution of Three Groups of Crime ---
+After dividing the crime instances into blue-collar, white-collar, and other groups, we graphed the crime density on our map for each group.
+```{r, echo = FALSE}
+cat(paste0("There are"), nrow(blueCrime), "blue-collar crime.")
+cat(paste0("There are"), nrow(blueCrime), "blue-collar crime.")
+cat(paste0("There are"), nrow(blueCrime), "blue-collar crime.")
+```
+
+```{r, echo = TRUE}
+graphBlueCrimeMap()
+```
+As shown by the map, blue-collar crime concentrated extensively in the northeast corner of San Francisco, with the highest crime density in the center of that region. Meanwhile, small clusters of crime occured far way from the northeast. 
+
+```{r, echo = TRUE}
+graphWhiteCrimeMap()
+```
+Contrasting to our intuition, white-collar crime occured in almost the same area as blue-collar crime. Moreover, they were even more concentrated in the northeast corner of the city, as the white-collar crime density map shows fewer small clusters on the edge than the blue-collar crime density map. Blue-collar crime are over 5 times more than white-collar crime, yet the density of white-collar crime around the northeast corner is almost the same as that of blue-collar crime. Even though they have extremely simlar distributions, blue-collar crime occur much more often than white-collar ones.
+
+```{r, echo = TRUE}
+graphOtherCrimeMap()
+```
+Instead of concentrating in a particular area, the rest of crime instances located around several different places in the city. However, similar to blue-collar and white-collar crime, very few occured in the west or south regions of San Francisco. One potential reason for this pattern is that criminals mostly commit crime around populated areas where most major companies, malls, and restaurants are located.
+
+--- Minimal Distances from Starbucks --- 
+After quantifying the relationship between crime and Starbucks locations by calculating the distances in between, we explored such relationship visually first by crime category and eventually of all crime instances. 
+```{r, echo = TRUE}
+boxplotMinStarDistOf("SUICIDE")
+barplotMinStarDistOf("SUICIDE")
+```
+```{r, echo = TRUE}
+boxplotMinStarDistOf("BAD CHECKS")
+barplotMinStarDistOf("BAD CHECKS")
+```
+Above are plots of only several interesting categories. Due to limited length of this report, we will not demonstrate the correlation between crime and Starbucks locations of every category. However, one should be able to realize the differences of distribution amongst different crime categories. We also encourage readers to utilize our ploting functions in plotCrimeMinStarBucksDist.R to explore further.
+
+Lastly, we used bar plot to visualize distances from closest Starbucks for all crime instances and colored the bars by crime group. 
+```{r, echo = TRUE}
+barplotMinStarDistByGroup()
+```
+As shown by the above graph, the crime rate increases significantly when the mininal distances from Starbucks exceeds roughly 1100. And the crime rate decreases as the distances increase in range 600-1000. This observation matches with the crime density graphs obtained previously: Starbucks shops are concentrated in the northeast corner of San Francisco, so were the crime instances. In other words, areas farther away from the northeast area of San Francisco have fewer Starbucks, and respectively lower crime rate. 
+
+### Prediction Results
+
+We used ctree and rpart to get the split points to understand general pattern of data. Because PdDistrict column contains more factors than other columns, both algorithms weighted more on PdDistrict column to start from. And then, we used other bagging and ensemble methods to calculate the accuracy of data. All algorithms incorporate a bootstrapping method internally to measure the prediction accuracy. 
+
+Followings are fitted algorithms. ctree, rpart, randomforset, supoort vector machine, gradient boosting machine respectively.
+```{r, echo=TRUE}
+fitCtree
+fitRpart
+fitRandomForest
+fitSVM
+fitGbm
+```
+
+We plotted trained ctree and rpart algorithms to see how each algorithm generated decision branches, and plotted the results of SVM, Random Forest, and GBM models to find out the optimal tuning parameters.
+
+Followings are the results of each predictive model. ctree, rpart, randomforest, svm, gbm.
+As the plot generated by ctree shows that PdDistrict is a considerably important factor to classify the types of crime. The plot generated by rpart also classified data first with the PdDstrict column. As we move down from the root to the leaves, we can how each entry is divided into each category based on thresholds denoted by nodes. Plots generated by Random Forest, SVM, GBM show the optimal tuning parameters estimated by boostrapping method.
+
+```{r, echo=TRUE}
+plot(fitCtree, main = "ctree")
+fancyRpartPlot(fitRpart, main = "rpart")
+ggplot(fitRandomForest) + ggtitle("Random Forest")
+ggplot(fitSVM) + ggtitle("Support Vector Mahcine")
+ggplot(fitGbm) + ggtitle("Gradient Boosting Mahcine")
+```
+
+Followings are plots of kappa values of each model based on tuning parameters. We observed kappa values to measure the interrater reliability. Unfortuantely, all of the kappa values generated by models are low, which shows a poor level of agreement.
+
+```{r, echo=TRUE}
+ggplot(fitRandomForest, metric = "Kappa") + ggtitle("kappa values of Random Forest.")
+ggplot(fitSVM, metric = "Kappa") + ggtitle("kappa values of Support Vector Machine.")
+ggplot(fitGbm, metric = "Kappa") + ggtitle("kappa values of Gradient Boosting Machine.")
+```
+
+Followings are confusion matrices of each model. These show the results of the comparisons between reference and prediction internally. As these models show, blue-collar crimes are easier to predict than white-collar and other crime. Also, Random Forest and SVM predict every crime instacne as a blue-crime crime. We assumed that it is because there are more blue-collar crime instances in general and there is no vivid pattern among crime instances, or the grouping is too general to catch the distinct pattern of each type of crimes.
+
+```{r, echo=TRUE}
+trellis.par.set(caretTheme())
+confusionMatrix(fitRandomForest)
+confusionMatrix(fitSVM)
+confusionMatrix(fitGbm)
+```
+
+These are plot summaries of model comparisons. When it comes to the overall average accuracy, SVM is superior to other models. However, GBM has a higher kappa value among all.
+Model comparisons
+
+```{r, echo=TRUE}
+results <- resamples(list(RandomForest=fitRandomForest, SVM = fitSVM, GBM = fitGbm))
+summary(results)
+bwplot(results)
+dotplot(results)
+```
+
+There are plots of variable importance calculated by each model. Random Forest model shows that distance, year 2008, PdDistrict, Wednesday and hour 10. GBM model also agrees this result. We can conclude that distacne from nearby Starbucks to the criem spot matters a lot, and there must have been distinct trend of crime during 2008 that makes it different from other years. Also, PdDistricts Mission, Tenderloin have distinct patterns from other areas.
+
+```{r, eval = TRUE}
+gbmImp <- varImp(fitRandomForest, scale = FALSE)
+plot(gbmImp, top = 20)
+gbmImp <- varImp(fitGbm, scale = FALSE)
+plot(gbmImp, top = 20)
+```
